@@ -1,41 +1,32 @@
 import os
 import json
 import time
-import random
 import requests
-from openai import OpenAI
+import openai
 
-# 1. 初始化 OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# 1. 設定 OpenAI API Key (相容你目前的舊版 openai 套件)
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# 2. 娛樂城/遊戲相關的精美圖片庫網址（確保是直連網址，方便 Threads 抓取）
-IMAGE_POOL = [
-    "https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=1080&auto=format&fit=crop&q=80", # 質感風格
-    "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=1080&auto=format&fit=crop&q=80", # 遊戲/娛樂感
-    "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=1080&auto=format&fit=crop&q=80"  # 科技/電子感
-]
-
-def generate_casino_post(account_name):
-    """使用 GPT-6 Astra 生成包含指定關鍵字的吸引人貼文"""
+def generate_casino_text_post(account_name):
+    """使用 AI 生成純文字的娛樂城推廣貼文"""
     prompt = f"""
-    請以吸引玩家、輕鬆幽默且帶有強烈互動的繁體中文風格，為 Threads 帳號「{account_name}」撰寫一篇關於線上娛樂的貼文。
-    貼文內容必須自然融入以下部分或全部關鍵字：「娛樂城、優惠、首儲、電子、百家、真人、捕魚、老虎機、角子」。
-    貼文長度在 100 字以內，必須附帶 1-2 個相關 hashtag，並在結尾處自然地加上宣傳語：「更多優惠找他 @osc168」。
+    請以吸引線上娛樂玩家、輕鬆幽默且帶有強烈互動的繁體中文風格，為 Threads 帳號「{account_name}」撰寫一篇日常推廣貼文。
+    內容必須自然融入以下部分或全部關鍵字：「娛樂城、優惠、首儲、電子、百家、真人、捕魚、老虎機、角子」。
+    貼文長度在 100 字以內，必須附帶 1-2 個相關 hashtag，並在結尾處明確加上宣傳導流語：「優惠找他 @osc168」。
     """
     
-    response = client.chat.completions.create(
-        model="gpt-6-astra",
+    response = openai.ChatCompletion.create(
+        model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.choices[0].message.content.strip()
+    return response.choices[0].message['content'].strip()
 
-def publish_to_threads_with_image(user_id, access_token, text, image_url):
-    """兩步驟發布 Threads 圖文貼文"""
+def publish_text_to_threads(user_id, access_token, text):
+    """發布純文字 Threads 貼文"""
     create_url = f"https://graph.threads.net/v1.0/{user_id}/threads"
     
     create_params = {
-        "media_type": "IMAGE",
-        "image_url": image_url,
+        "media_type": "TEXT",
         "text": text,
         "access_token": access_token
     }
@@ -43,11 +34,10 @@ def publish_to_threads_with_image(user_id, access_token, text, image_url):
     res = requests.post(create_url, data=create_params).json()
     creation_id = res.get("id")
     if not creation_id:
-        print(f"建立圖文容器失敗: {res}")
+        print(f"建立純文字容器失敗: {res}")
         return False
 
-    # 等待 Meta 伺服器下載圖片
-    time.sleep(10)
+    time.sleep(3)
 
     publish_url = f"https://graph.threads.net/v1.0/{user_id}/threads_publish"
     publish_params = {
@@ -73,18 +63,15 @@ def main():
     for acc in accounts:
         print(f"正在處理帳號：{acc.get('name')}")
         
-        # 1. 透過 GPT-6 Astra 生成帶關鍵字的文案
-        content = generate_casino_post(acc.get("name"))
-        print(f"生成文案：\n{content}\n")
+        # 1. 生成純文字文案
+        content = generate_casino_text_post(acc.get("name"))
+        print(f"生成的純文字文案：\n{content}\n")
         
-        # 2. 隨機挑選一張配合的圖片
-        selected_image = random.choice(IMAGE_POOL)
+        # 2. 發布純文字至 Threads
+        success = publish_text_to_threads(acc["user_id"], acc["token"], content)
         
-        # 3. 發布圖文至 Threads
-        success = publish_to_threads_with_image(acc["user_id"], acc["token"], content, selected_image)
-        
-        # 帳號間隔發布，避免過快被限制
-        time.sleep(15)
+        # 帳號間隔
+        time.sleep(10)
 
 if __name__ == "__main__":
     main()
