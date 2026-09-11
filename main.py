@@ -4,11 +4,11 @@ import time
 import requests
 import openai
 
-# 1. 設定 OpenAI API Key (相容你目前的舊版 openai 套件)
+# 設定 OpenAI API Key (舊版寫法)
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def generate_casino_text_post(account_name):
-    """使用 AI 生成純文字的娛樂城推廣貼文"""
+    """使用舊版 OpenAI 介面生成純文字娛樂城貼文"""
     prompt = f"""
     請以吸引線上娛樂玩家、輕鬆幽默且帶有強烈互動的繁體中文風格，為 Threads 帳號「{account_name}」撰寫一篇日常推廣貼文。
     內容必須自然融入以下部分或全部關鍵字：「娛樂城、優惠、首儲、電子、百家、真人、捕魚、老虎機、角子」。
@@ -63,14 +63,11 @@ def main():
     for acc in accounts:
         print(f"正在處理帳號：{acc.get('name')}")
         
-        # 1. 生成純文字文案
         content = generate_casino_text_post(acc.get("name"))
         print(f"生成的純文字文案：\n{content}\n")
         
-        # 2. 發布純文字至 Threads
         success = publish_text_to_threads(acc["user_id"], acc["token"], content)
         
-        # 帳號間隔
         time.sleep(10)
 
 if __name__ == "__main__":
