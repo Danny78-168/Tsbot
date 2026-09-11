@@ -7,35 +7,9 @@ from openai import OpenAI
 # 1. 初始化 OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def generate_thread_post(account_name):
-    """呼叫 OpenAI 自動生成文案與圖片關鍵字"""
-    prompt = f"""請以輕鬆幽默、吸引互動的繁體中文風格，為 Threads 帳號「{account_name}」撰寫一篇 100 字以內的日常閒聊或乾貨貼文，附帶 1-2 個 hashtag。
-另外，請在回覆的最下方用這一行格式告訴我一個對應的英文圖片關鍵字（例如: coffee, technology, nature, food, cat, office）：
-KEYWORD: [你的英文關鍵字]"""
-    
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.8,
-    )
-    full_text = response.choices[0].message.content.strip()
-    
-    # 解析文案與關鍵字
-    if "KEYWORD:" in full_text:
-        parts = full_text.split("KEYWORD:")
-        post_content = parts[0].strip()
-        keyword = parts[1].strip().replace("[", "").replace("]", "").strip()
-    else:
-        post_content = full_text
-        keyword = "nature" # 預設關鍵字
-        
-    return post_content, keyword
-
 def get_relevant_image_url(keyword):
-    """根據 AI 提供的關鍵字取得相關的高畫質圖片網址"""
-    # 使用 Unsplash Source 根據關鍵字動態抓取圖片
-    image_url = f"https://source.unsplash.com/featured/1080x1080/?{keyword}"
-    return image_url
+    """根據關鍵字取得相關的高畫質圖片網址"""
+    return f"https://source.unsplash.com/featured/1080x1080/?{keyword}"
 
 def publish_to_threads(user_id, access_token, text, image_url=None):
     """兩步驟發布 Threads 圖文貼文"""
@@ -61,10 +35,8 @@ def publish_to_threads(user_id, access_token, text, image_url=None):
         print(f"建立容器失敗: {res}")
         return False
 
-    # 等待 Meta 伺服器下載圖片
     time.sleep(6)
 
-    # 發布容器內容
     publish_url = f"https://graph.threads.net/v1.0/{user_id}/threads_publish"
     publish_params = {
         "creation_id": creation_id,
@@ -85,23 +57,41 @@ def main():
         return
 
     accounts = json.loads(accounts_data)
+    
+    # 檢查是否有手動輸入的自訂文案
+    custom_text = os.getenv("CUSTOM_POST_TEXT")
 
     for acc in accounts:
         print(f"正在處理帳號：{acc.get('name')}")
         
-        # 1. 生成文案與圖片關鍵字
-        content, keyword = generate_thread_post(acc.get("name"))
-        print(f"生成文案：\n{content}\n")
-        print(f"AI 決定的圖片主題：{keyword}")
-        
-        # 2. 取得對應的關聯圖片網址
+        if custom_text and custom_text.strip():
+            # 使用你手動輸入的內容
+            content = custom_text.strip()
+            keyword = "lifestyle" # 預設配圖關鍵字
+            print(f"使用手動自訂文案：\n{content}\n")
+        else:
+            # 如果沒有手動輸入，就交給 OpenAI 自動生成
+            print("未偵測到自訂文案，改由 AI 自動生成...")
+            prompt = f"請以輕鬆幽默的繁體中文風格，為 Threads 帳號「{acc.get('name')}」撰寫一篇 100 字以內的日常貼文，附帶 1-2 個 hashtag。並在結尾加上 KEYWORD: [英文關鍵字]"
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.8,
+            )
+            full_text = response.choices[0].message.content.strip()
+            if "KEYWORD:" in full_text:
+                parts = full_text.split("KEYWORD:")
+                content = parts[0].strip()
+                keyword = parts[1].strip().replace("[", "").replace("]", "").strip()
+            else:
+                content = full_text
+                keyword = "nature"
+            print(f"AI 生成文案：\n{content}\n")
+
+        # 取得圖片並發布
         img_url = get_relevant_image_url(keyword)
-        print(f"圖片網址：{img_url}")
-        
-        # 3. 發布至 Threads
         success = publish_to_threads(acc["user_id"], acc["token"], content, img_url)
         
-        # 帳號間間隔發布
         time.sleep(10)
 
 if __name__ == "__main__":
