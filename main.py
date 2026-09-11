@@ -53,20 +53,20 @@ def main():
     for acc in accounts:
         print(f"正在處理帳號：{acc.get('name')}")
         
-        # 判斷要用手動自訂文案還是 GPT-6 Astra 生成
+        # 判斷要用手動自訂文案還是 AI 生成
         if custom_text and custom_text.strip() != "":
             content = custom_text.strip()
             print(f"成功讀取到手動自訂文案：\n{content}\n")
         else:
-            print("未偵測到自訂文案，改由 GPT-6 Astra 自動生成...")
+            print("未偵測到自訂文案，改由 AI 自動生成...")
             prompt = f"請以輕鬆幽默的繁體中文風格，為 Threads 帳號「{acc.get('name')}」撰寫一篇 100 字以內的日常貼文，附帶 1-2 個 hashtag。"
             response = client.chat.completions.create(
-                model="gpt-6-astra",  # 使用最新的 GPT-6 Astra 模型
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.8,
+                model="gpt-6-astra",
+                messages=[{"role": "user", "content": prompt}]
+                # 已移除不支援的 temperature 設定
             )
             content = response.choices[0].message.content.strip()
-            print(f"GPT-6 Astra 生成文案：\n{content}\n")
+            print(f"AI 生成文案：\n{content}\n")
 
         # 發布純文字至 Threads
         success = publish_to_threads(acc["user_id"], acc["token"], content)
