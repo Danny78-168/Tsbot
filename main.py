@@ -7,27 +7,15 @@ from openai import OpenAI
 # 1. 初始化 OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def get_relevant_image_url(keyword):
-    """根據關鍵字取得相關的高畫質圖片網址"""
-    return f"https://source.unsplash.com/featured/1080x1080/?{keyword}"
-
-def publish_to_threads(user_id, access_token, text, image_url=None):
-    """兩步驟發布 Threads 圖文貼文"""
+def publish_to_threads(user_id, access_token, text):
+    """純文字發布 Threads 貼文"""
     create_url = f"https://graph.threads.net/v1.0/{user_id}/threads"
     
-    if image_url:
-        create_params = {
-            "media_type": "IMAGE",
-            "image_url": image_url,
-            "text": text,
-            "access_token": access_token
-        }
-    else:
-        create_params = {
-            "media_type": "TEXT",
-            "text": text,
-            "access_token": access_token
-        }
+    create_params = {
+        "media_type": "TEXT",
+        "text": text,
+        "access_token": access_token
+    }
 
     res = requests.post(create_url, data=create_params).json()
     creation_id = res.get("id")
@@ -35,7 +23,8 @@ def publish_to_threads(user_id, access_token, text, image_url=None):
         print(f"建立容器失敗: {res}")
         return False
 
-    time.sleep(6)
+    # 短暫暫停確保容器就緒
+    time.sleep(3)
 
     publish_url = f"https://graph.threads.net/v1.0/{user_id}/threads_publish"
     publish_params = {
@@ -58,41 +47,32 @@ def main():
 
     accounts = json.loads(accounts_data)
     
-    # 檢查是否有手動輸入的自訂文案
+    # 讀取手動自訂文案
     custom_text = os.getenv("CUSTOM_POST_TEXT")
 
     for acc in accounts:
         print(f"正在處理帳號：{acc.get('name')}")
         
-        if custom_text and custom_text.strip():
-            # 使用你手動輸入的內容
+        # 判斷要用手動自訂文案還是 GPT-6 Astra 生成
+        if custom_text and custom_text.strip() != "":
             content = custom_text.strip()
-            keyword = "lifestyle" # 預設配圖關鍵字
-            print(f"使用手動自訂文案：\n{content}\n")
+            print(f"成功讀取到手動自訂文案：\n{content}\n")
         else:
-            # 如果沒有手動輸入，就交給 OpenAI 自動生成
-            print("未偵測到自訂文案，改由 AI 自動生成...")
-            prompt = f"請以輕鬆幽默的繁體中文風格，為 Threads 帳號「{acc.get('name')}」撰寫一篇 100 字以內的日常貼文，附帶 1-2 個 hashtag。並在結尾加上 KEYWORD: [英文關鍵字]"
+            print("未偵測到自訂文案，改由 GPT-6 Astra 自動生成...")
+            prompt = f"請以輕鬆幽默的繁體中文風格，為 Threads 帳號「{acc.get('name')}」撰寫一篇 100 字以內的日常貼文，附帶 1-2 個 hashtag。"
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-6-astra",  # 使用最新的 GPT-6 Astra 模型
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
             )
-            full_text = response.choices[0].message.content.strip()
-            if "KEYWORD:" in full_text:
-                parts = full_text.split("KEYWORD:")
-                content = parts[0].strip()
-                keyword = parts[1].strip().replace("[", "").replace("]", "").strip()
-            else:
-                content = full_text
-                keyword = "nature"
-            print(f"AI 生成文案：\n{content}\n")
+            content = response.choices[0].message.content.strip()
+            print(f"GPT-6 Astra 生成文案：\n{content}\n")
 
-        # 取得圖片並發布
-        img_url = get_relevant_image_url(keyword)
-        success = publish_to_threads(acc["user_id"], acc["token"], content, img_url)
+        # 發布純文字至 Threads
+        success = publish_to_threads(acc["user_id"], acc["token"], content)
         
-        time.sleep(10)
+        # 帳號間隔
+        time.sleep(5)
 
 if __name__ == "__main__":
     main()
